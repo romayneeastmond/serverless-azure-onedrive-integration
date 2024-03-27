@@ -18,19 +18,36 @@ namespace Application.Function
         [Function("UploadDocument")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
         {
-            _logger.LogInformation("C# HTTP trigger function processed a request.");           
+            _logger.LogInformation("C# HTTP trigger function processed a request.");
 
             var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
             if (requestBody != null)
             {
                 _logger.LogInformation(requestBody);
-                
+
                 dynamic? data = JsonConvert.DeserializeObject(requestBody);
 
                 if (data != null && data?.ContainsKey("document") && data?.ContainsKey("location"))
                 {
-                    
+                    try
+                    {
+                        var location = Convert.ToString(data?["location"]);
+                        var documentBytes = Convert.FromBase64String(data?["document"]);
+
+                        if (OneDriveHelper.UploadDocument(location, documentBytes))
+                        {
+                            return new OkObjectResult("Uploaded document to " + location);
+                        }
+                        else
+                        {
+                            return new BadRequestObjectResult("Unable to upload document");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        return new BadRequestObjectResult("Error " + e.Message);
+                    }
                 }
             }
 

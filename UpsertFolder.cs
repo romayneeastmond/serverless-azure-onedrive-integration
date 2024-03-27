@@ -25,12 +25,21 @@ namespace Application.Function
             if (requestBody != null)
             {
                 _logger.LogInformation(requestBody);
-                
+
                 dynamic? data = JsonConvert.DeserializeObject(requestBody);
 
                 if (data != null && data?.ContainsKey("location"))
                 {
-                    
+                    var location = Convert.ToString(data?["location"]);
+
+                    if (OneDriveHelper.UpsertFolder(location))
+                    {
+                        return new OkObjectResult("Created folder " + location);
+                    }
+                    else
+                    {
+                        return new BadRequestObjectResult("Unable to create folder " + location + "".Trim());
+                    }
                 }
             }
 
