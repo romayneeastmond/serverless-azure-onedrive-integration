@@ -32,13 +32,23 @@ namespace Application.Function
                 {
                     var location = Convert.ToString(data?["location"]);
 
-                    if (OneDriveHelper.UpsertFolder(location))
+                    var result = await OneDriveHelper.UpsertFolder(location);
+
+                    if (!string.IsNullOrWhiteSpace(result))
                     {
-                        return new OkObjectResult("Created folder " + location);
+                        return new OkObjectResult(new
+                        {
+                            Id = result,
+                            Location = location
+                        });
                     }
                     else
                     {
-                        return new BadRequestObjectResult("Unable to create folder " + location + "".Trim());
+                        return new BadRequestObjectResult(new
+                        {
+                            Error = true,
+                            Message = "Unable to create folder " + location + "".Trim()
+                        });
                     }
                 }
             }

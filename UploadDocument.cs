@@ -28,25 +28,34 @@ namespace Application.Function
 
                 dynamic? data = JsonConvert.DeserializeObject(requestBody);
 
-                if (data != null && data?.ContainsKey("document") && data?.ContainsKey("location"))
+                if (data != null && data?.ContainsKey("document") && data?.ContainsKey("name") && data?.ContainsKey("location"))
                 {
                     try
                     {
                         var location = Convert.ToString(data?["location"]);
-                        var documentBytes = Convert.FromBase64String(data?["document"]);
+                        var name = Convert.ToString(data?["name"]);
+                        var documentBytes = Convert.FromBase64String(Convert.ToString(data?["document"]));
 
-                        if (OneDriveHelper.UploadDocument(location, documentBytes))
+                        if (OneDriveHelper.UploadDocument(location, name, documentBytes))
                         {
-                            return new OkObjectResult("Uploaded document to " + location);
+                            return new OkObjectResult("Uploaded " + name + " to " + location);
                         }
                         else
                         {
-                            return new BadRequestObjectResult("Unable to upload document");
+                            return new BadRequestObjectResult(new
+                            {
+                                Error = true,
+                                Message = "Unable to upload document"
+                            });
                         }
                     }
                     catch (Exception e)
                     {
-                        return new BadRequestObjectResult("Error " + e.Message);
+                        return new BadRequestObjectResult(new
+                        {
+                            Error = true,
+                            e.Message
+                        });
                     }
                 }
             }
