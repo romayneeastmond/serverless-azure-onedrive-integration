@@ -2,12 +2,13 @@ using Azure.Identity;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Graph.Models.ODataErrors;
+using DriveUpload = Microsoft.Graph.Drives.Item.Items.Item.CreateUploadSession;
 
 namespace Application.Function
 {
     public static class OneDriveHelper
     {
-        public async static Task<string> CreateFolder(GraphServiceClient graphClient, string defaultId, string folderId, string location)
+        public async static Task<string> CreateFolder(GraphServiceClient graphServiceClient, string defaultId, string folderId, string location)
         {
             try
             {
@@ -25,13 +26,13 @@ namespace Application.Function
                     },
                 };
 
-                var result = await graphClient.Drives[defaultId].Items[folderId].Children.PostAsync(requestBody);
+                var result = await graphServiceClient.Drives[defaultId].Items[folderId].Children.PostAsync(requestBody);
 
                 return result?.Id ?? string.Empty;
             }
-            catch (ODataError ex)
+            catch (ODataError e)
             {
-                Console.WriteLine($"Error uploading: {ex.Error?.Message}");
+                Console.WriteLine($"Error creating folder: {e.Error?.Message}");
             }
 
             return string.Empty;
@@ -73,6 +74,70 @@ namespace Application.Function
             return graphServiceClient;
         }
 
+        public async static Task<string> UploadDocument(string location, string name, byte[] byteArray)
+        {
+            var graphServiceClient = GetGraphServiceClient();
+
+            var defaultId = await GetDefaultDriveId(graphServiceClient);
+
+            return await UploadDocument(graphServiceClient, defaultId, location, name, byteArray);
+        }
+
+        public async static Task<string> UploadDocument(GraphServiceClient graphServiceClient, string defaultId, string location, string name, byte[] byteArray)
+        {
+            if (string.IsNullOrWhiteSpace(defaultId) || string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(name) || byteArray == null)
+            {
+                return string.Empty;
+            }
+
+            var folderId = await UpsertFolder(graphServiceClient, defaultId, location);
+
+            if (string.IsNullOrWhiteSpace(folderId))
+            {
+                return string.Empty;
+            }
+
+            var uploadSessionRequestBody = new DriveUpload.CreateUploadSessionPostRequestBody
+            {
+                Item = new DriveItemUploadableProperties
+                {
+                    AdditionalData = new Dictionary<string, object>
+                {
+                    {
+                        "@microsoft.graph.conflictBehavior", "replace" //fail, replace, or rename
+                    },
+                },
+                },
+            };
+
+            using var memorySteam = new MemoryStream(byteArray);
+
+            var uploadSession = await graphServiceClient.Drives[defaultId].Items[folderId].ItemWithPath(name).CreateUploadSession.PostAsync(uploadSessionRequestBody);
+
+            int maxSliceSize = 320 * 1024;
+            var fileUploadTask = new LargeFileUploadTask<DriveItem>(uploadSession, memorySteam, maxSliceSize, graphServiceClient.RequestAdapter);
+
+            var totalLength = memorySteam.Length;
+
+            var progress = new Progress<long>(prog =>
+            {
+                Console.WriteLine($"Uploaded {prog} bytes of {totalLength} bytes");
+            });
+
+            try
+            {
+                var result = await fileUploadTask.UploadAsync(progress);
+
+                return result?.ItemResponse?.Id ?? string.Empty;
+            }
+            catch (ODataError e)
+            {
+                Console.WriteLine($"Error uploading: {e.Error?.Message}");
+            }
+
+            return string.Empty;
+        }
+
         public async static Task<string> UpsertFolder(string location)
         {
             var graphServiceClient = GetGraphServiceClient();
@@ -82,7 +147,7 @@ namespace Application.Function
             return await UpsertFolder(graphServiceClient, defaultId, location);
         }
 
-        public async static Task<string> UpsertFolder(GraphServiceClient graphClient, string defaultId, string location)
+        public async static Task<string> UpsertFolder(GraphServiceClient graphServiceClient, string defaultId, string location)
         {
             if (string.IsNullOrWhiteSpace(defaultId) || string.IsNullOrWhiteSpace(location))
             {
@@ -100,11 +165,11 @@ namespace Application.Function
                 }
 
                 var folder = directoryParts[i].Trim();
-                var children = await graphClient.Drives[defaultId].Items[folderId].Children.GetAsync();
+                var children = await graphServiceClient.Drives[defaultId].Items[folderId].Children.GetAsync();
 
                 if (children == null)
                 {
-                    folderId = await CreateFolder(graphClient, defaultId, folderId, folder);
+                    folderId = await CreateFolder(graphServiceClient, defaultId, folderId, folder);
                 }
                 else if (children != null && children.Value != null)
                 {
@@ -123,22 +188,12 @@ namespace Application.Function
 
                     if (foundChildInFolder == false)
                     {
-                        folderId = await CreateFolder(graphClient, defaultId, folderId ?? string.Empty, folder);
+                        folderId = await CreateFolder(graphServiceClient, defaultId, folderId ?? string.Empty, folder);
                     }
                 }
             }
 
             return folderId ?? string.Empty;
-        }
-
-        public static bool UploadDocument(string location, string name, byte[] document)
-        {
-            if (string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(name) || document == null)
-            {
-                return false;
-            }
-
-            return true;
         }
     }
 }

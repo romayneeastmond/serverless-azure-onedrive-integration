@@ -14,5 +14,8 @@ Folders and documents will be visible directly from OneDrive or from the registe
 
 Update the hardcoded values in the helper method with a valid Microsoft Entra app registration's AppId, TenantId, and Secret. 
 
-The UpsertFolder endpoint expects a 'location' value passed as a POST, and UploadDocument expects a POST base64 encoded value of a byte array to a 'document' field with 'location' of where the document should be saved on OneDrive.
+The UpsertFolder endpoint expects a 'location' value passed as a POST, and UploadDocument expects a POST base64 encoded value of a byte array to a 'document' field with 'location' of where the document should be saved on OneDrive, and 'name' for the actual document file name.
 
+Note that the 'location' value can be nested to match an expected folder structure, e.g. "Documents\\2024\\March".
+
+Both endpoints return the Id of either the folder or document.
