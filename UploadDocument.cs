@@ -36,9 +36,16 @@ namespace Application.Function
                         var name = Convert.ToString(data?["name"]);
                         var documentBytes = Convert.FromBase64String(Convert.ToString(data?["document"]));
 
-                        if (OneDriveHelper.UploadDocument(location, name, documentBytes))
+                        var result = await OneDriveHelper.UploadDocument(location, name, documentBytes);
+
+                        if (!string.IsNullOrWhiteSpace(result))
                         {
-                            return new OkObjectResult("Uploaded " + name + " to " + location);
+                            return new OkObjectResult(new
+                            {
+                                Id = result,
+                                Location = location,
+                                Name = name
+                            });
                         }
                         else
                         {
